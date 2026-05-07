@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Zaloguj się do Spotify</title>
+    <style>
+
+        body { font-family: sans-serif; text-align: center; background-color: #121212; color: white; }
+        input[type="text"] { width: 80%; padding: 10px; border-radius: 5px; border: none; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Witaj w Music Quiz!</h1>
+    <p>Aby zagrać, musisz połączyć się ze Spotify.</p>
+    <a href="{% url 'login' %}" style="padding: 10px 20px; background: #1DB954; color: white; text-decoration: none; border-radius: 20px;">
+        Zaloguj przez Spotify
+    </a>
+</body>
+</html>

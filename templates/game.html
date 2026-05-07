@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <title>Grasz teraz!</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background-color: #121212; color: white; }
+        .container { max-width: 600px; margin: 50px auto; padding: 20px; background: #181818; border-radius: 20px; }
+        .spotify-green { color: #1DB954; }
+        .btn { border: none; color: white; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-play { background-color: #1DB954; border-radius: 50px; padding: 20px 40px; margin: 20px 0; }
+        .btn-play:disabled { background-color: #535353; cursor: not-allowed; }
+        .btn-check { background-color: #1DB954; padding: 10px 20px; border-radius: 5px; }
+        input[type="text"] { width: 80%; padding: 10px; border-radius: 5px; border: none; margin: 10px 0; background: #282828; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="spotify-green">Zgadnij utwór 🎵</h1>
+        <p>Poziom: <strong>{{ difficulty_name }}</strong></p>
+
+        <button id="play-btn" class="btn btn-play" disabled>ŁADOWANIE ODTWARZACZA...</button>
+
+        <div style="margin-top: 20px;">
+            <input type="text" id="guess-input" list="songs-list" placeholder="Wpisz tytuł piosenki..." autocomplete="off">
+            <datalist id="songs-list">
+                {% for name in track_names %}
+                    <option value="{{ name }}">
+                {% endfor %}
+            </datalist>
+            <br>
+            <button class="btn btn-check" onclick="checkGuess()">Zgaduję!</button>
+        <p id="feedback-msg" style="margin-top: 20px; font-weight: bold; min-height: 1.2em;"></p>
+        </div>
+    </div>
+
+    <script src="https://sdk.scdn.co/spotify-player.js"></script>
+
+    <script>
+        let device_id;
+        let isPlaying = false;
+        let player; // Zmienna globalna dla odtwarzacza
+
+        window.onSpotifyWebPlaybackSDKReady = () => {
+            player = new Spotify.Player({
+                name: 'Music Quiz Player',
+                getOAuthToken: cb => { cb("{{ spotify_token }}"); },
+                volume: 0.5
+            });
+
+            player.addListener('ready', ({ device_id: id }) => {
+                device_id = id;
+                const btn = document.getElementById('play-btn');
+                btn.disabled = false;
+                btn.innerText = "ODTWÓRZ FRAGMENT";
+            });
+
+            player.connect();
+        };
+
+        document.getElementById('play-btn').onclick = function() {
+            if (!device_id || isPlaying) return;
+
+            const btn = this;
+            const uri = "{{ track_uri }}";
+            const token = "{{ spotify_token }}";
+            const duration = {{ current_time_ms }};
+
+            isPlaying = true;
+            btn.disabled = true;
+            btn.innerText = "GRA... 🎶";
+
+            // Bezpośredni strzał do API Spotify zamiast do Django
+            fetch(`https://api.spotify.com/v1/me/player/play?device_id=${device_id}`, {
+                method: 'PUT',
+                body: JSON.stringify({ uris: [uri] }),
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("Błąd Spotify (Premium?)");
+
+                // Odliczanie czasu trwania fragmentu
+                setTimeout(() => {
+                    player.pause().then(() => {
+                        isPlaying = false;
+                        btn.disabled = false;
+                        btn.innerText = "ODTWÓRZ PONOWNIE";
+                    });
+                }, duration);
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Błąd: " + err.message);
+                isPlaying = false;
+                btn.disabled = false;
+                btn.innerText = "SPRÓBUJ PONOWNIE";
+            });
+        };
+
+        function checkGuess() {
+        const val = document.getElementById('guess-input').value;
+        const msgElement = document.getElementById('feedback-msg'); // Dodaj taki element w HTML!
+
+        fetch(`/check-guess/?guess=${encodeURIComponent(val)}`)
+            .then(r => r.json())
+            .then(data => {
+
+                msgElement.innerText = data.message;
+
+            if(data.result === 'correct') {
+                msgElement.style.color = "#1DB954";
+
+                setTimeout(() => { window.location.href = "{% url 'home' %}"; }, 2000);
+            } else {
+                msgElement.style.color = "#FF4136";
+                document.getElementById('guess-input').value = ""; // Czyścimy pole dla "pętli"
+            }
+        });
+        }
+    </script>
+</body>
+</html>
