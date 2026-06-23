@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Ranking{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">Najlepsze wyniki</p>
+        <h1>Ranking</h1>
+    </div>
+</section>
+
+<form method="get" class="filter-bar">
+    <label>
+        <span>Tryb</span>
+        <select name="mode">
+            <option value="">Wszystkie</option>
+            {% for mode in modes %}
+                <option value="{{ mode.id }}" {% if selected_mode_id == mode.id|stringformat:"s" %}selected{% endif %}>{{ mode.name }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>
+        <span>Playlista</span>
+        <select name="playlist">
+            <option value="">Wszystkie</option>
+            {% for playlist in playlist_choices %}
+                <option value="{{ playlist.playlist_id }}" {% if selected_playlist_id == playlist.playlist_id %}selected{% endif %}>{{ playlist.playlist_name }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <button type="submit" class="button button-primary">Filtruj</button>
+</form>
+
+<section class="ranking-layout">
+    <div>
+        <h2>Top wyniki</h2>
+        <div class="ranking-list">
+            {% for result in top_results %}
+                <article class="ranking-row">
+                    <span class="rank">{{ forloop.counter }}</span>
+                    <div>
+                        <strong>{{ result.user.first_name|default:result.user.username }}</strong>
+                        <span>{{ result.game_mode.name }} · {{ result.playlist_name }} · {{ result.played_at|date:"Y-m-d" }}</span>
+                    </div>
+                    <b>{{ result.score }} pkt</b>
+                </article>
+            {% empty %}
+                <div class="empty-state">
+                    <h2>Brak wyników</h2>
+                    <p>Zagraj pierwszą grę, żeby zapełnić ranking.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div>
+        <h2>Twoje rekordy</h2>
+        <div class="ranking-list">
+            {% for result in user_results %}
+                <article class="ranking-row">
+                    <span class="rank">{{ forloop.counter }}</span>
+                    <div>
+                        <strong>{{ result.score }} pkt</strong>
+                        <span>{{ result.game_mode.name }} · {{ result.playlist_name }} · {{ result.correct_answers }}/{{ result.rounds_count }}</span>
+                    </div>
+                    <a href="{% url 'game_summary' result.id %}" class="button button-secondary">Szczegóły</a>
+                </article>
+            {% empty %}
+                <div class="empty-state">
+                    <h2>Nie masz jeszcze wyników</h2>
+                    <p>Po zakończonej grze pojawią się tutaj Twoje rekordy.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endblock %}

@@ -23,10 +23,13 @@ urlpatterns = [
     path('', views.index, name='home'),
     path('login/', views.login_spotify, name='login'),
     path('callback/', views.callback, name='callback'),
-
-
-
+    path('game-modes/new/', views.create_game_mode, name='create_game_mode'),
+    path('playlists/<int:game_mode_id>/', views.choose_playlist, name='choose_playlist'),
     path('view-playlist/', views.view_playlist, name='view_playlist'),
     path('start-game/', views.start_game, name='start_game'),
+    path('game/round/', views.game_round, name='game_round'),
+    path('game/next/', views.next_round, name='next_round'),
+    path('game/summary/<int:result_id>/', views.game_summary, name='game_summary'),
+    path('ranking/', views.ranking, name='ranking'),
     path('check-guess/', views.check_guess, name='check_guess'),
 ]

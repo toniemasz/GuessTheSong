@@ -13,24 +13,15 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 from pathlib import Path
 from dotenv import load_dotenv
 import os
-from dotenv import load_dotenv
-import os
-print("!!!!!!!!!! SERVER STARTUJE I CZYTA TEN PLIK !!!!!!!!!!")
-load_dotenv()
+
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+load_dotenv(BASE_DIR / ".env")
 
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 REDIRECT_URI = os.getenv("REDIRECT_URI")
-
-# --- DODAJ TO TERAZ ---
-print("\n" + "="*30)
-print("DIAGNOSTYKA KLUCZY:")
-print(f"Szukam pliku .env w: {os.getcwd()}")
-print(f"Czy widzę SPOTIPY_CLIENT_ID?: {'TAK' if CLIENT_ID else 'NIE (None)'}")
-print("="*30 + "\n")
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 # Quick-start development settings - unsuitable for production
@@ -54,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'quiz.apps.QuizConfig',
 ]
 
 MIDDLEWARE = [
@@ -133,3 +125,6 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+LOGIN_URL = "home"
+DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

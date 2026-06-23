@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}Wybierz tryb gry{% endblock %}
+
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">Cześć, {{ user_name }}</p>
+        <h1>Wybierz tryb gry</h1>
+    </div>
+    <a href="{% url 'create_game_mode' %}" class="button button-secondary">Dodaj tryb</a>
+</section>
+
+<section class="mode-grid">
+    {% for mode in modes %}
+        <article class="card mode-card">
+            <div class="card-topline">
+                <h2>{{ mode.name }}</h2>
+                {% if mode.is_default %}<span class="pill">Domyślny</span>{% endif %}
+            </div>
+            {% if mode.description %}
+                <p>{{ mode.description }}</p>
+            {% endif %}
+            <div class="stats-row">
+                <span><strong>{{ mode.rounds_count }}</strong> rund</span>
+                <span><strong>{{ mode.max_attempts }}</strong> prób</span>
+            </div>
+            <div class="level-list">
+                {% for level in mode.levels.all %}
+                    <span>{{ level.display_label }} · {{ level.points }} pkt</span>
+                {% endfor %}
+            </div>
+            <a href="{% url 'choose_playlist' mode.id %}" class="button button-primary">Wybierz playlistę</a>
+        </article>
+    {% empty %}
+        <div class="empty-state">
+            <h2>Brak aktywnych trybów gry</h2>
+            <p>Dodaj pierwszy tryb w panelu administratora albo przez formularz w aplikacji.</p>
+        </div>
+    {% endfor %}
+</section>
+{% endblock %}

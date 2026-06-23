@@ -1,32 +1,40 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-    <meta charset="UTF-8">
-    <title>Utwory w Playliście</title>
-    <style>
-        body { font-family: sans-serif; background: #121212; color: white; padding: 20px; text-align: center;}
-        .container { max-width: 600px; margin: auto; }
-        .track-item { background: #181818; margin: 10px 0; padding: 15px; border-radius: 8px; border-left: 5px solid #1DB954; text-align: left;}
-        .btn { background: #1DB954; color: white; padding: 10px 20px; text-decoration: none; border-radius: 20px; font-weight: bold;}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Wczytano piosenki! 🎧</h1>
-        <p>Liczba utworów: <strong>{{ total_tracks }}</strong></p>
+{% extends "base.html" %}
 
-        <br>
-        <a href="{% url 'home' %}" class="btn">← Wróć do playlist</a>
-        <hr style="border-color: #333; margin: 20px 0;">
+{% block title %}Utwory w playliście{% endblock %}
 
-        {% for track in tracks %}
-    <div style="background: #181818; margin: 10px; padding: 15px; border-radius: 8px;">
-        <strong style="color: #1DB954;">{{ track.name }}</strong><br>
-        <small>{{ track.artist }}</small>
+{% block content %}
+<section class="page-heading">
+    <div>
+        <p class="eyebrow">{{ playlist_name|default:"Wybrana playlista" }}</p>
+        <h1>Utwory w playliście</h1>
+        <p class="lead">Wczytano {{ total_tracks }} utworów.</p>
     </div>
-        {% empty %}
-    <p>Ta playlista jest pusta!</p>
-        {% endfor %}
+    <div class="actions">
+        {% if game_mode %}
+            <form method="post" action="{% url 'start_game' %}">
+                {% csrf_token %}
+                <input type="hidden" name="playlist_id" value="{{ playlist_id }}">
+                <input type="hidden" name="playlist_name" value="{{ playlist_name }}">
+                <input type="hidden" name="playlist_image_url" value="{{ playlist_image_url }}">
+                <input type="hidden" name="game_mode_id" value="{{ game_mode.id }}">
+                <button type="submit" class="button button-primary">Graj w trybie {{ game_mode.name }}</button>
+            </form>
+        {% endif %}
+        <a href="{% if game_mode %}{% url 'choose_playlist' game_mode.id %}{% else %}{% url 'home' %}{% endif %}" class="button button-secondary">Wróć</a>
     </div>
-</body>
-</html>
+</section>
+
+<section class="track-list">
+    {% for track in tracks %}
+        <article class="track-row">
+            <strong>{{ track.name }}</strong>
+            <span>{{ track.artist }}</span>
+        </article>
+    {% empty %}
+        <div class="empty-state">
+            <h2>Ta playlista jest pusta</h2>
+            <p>Wybierz inną playlistę, żeby rozpocząć grę.</p>
+        </div>
+    {% endfor %}
+</section>
+{% endblock %}

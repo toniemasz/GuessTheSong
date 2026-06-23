@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Nowy tryb gry{% endblock %}
+
+{% block content %}
+<section class="page-heading compact-heading">
+    <div>
+        <p class="eyebrow">Konfiguracja</p>
+        <h1>Nowy tryb gry</h1>
+    </div>
+</section>
+
+<form method="post" class="form-panel">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+
+    <label>
+        <span>Nazwa</span>
+        {{ form.name }}
+        {{ form.name.errors }}
+    </label>
+
+    <label>
+        <span>Opis</span>
+        {{ form.description }}
+        {{ form.description.errors }}
+    </label>
+
+    <div class="form-grid">
+        <label>
+            <span>Liczba rund</span>
+            {{ form.rounds_count }}
+            {{ form.rounds_count.errors }}
+        </label>
+        <label>
+            <span>Liczba prób</span>
+            {{ form.max_attempts }}
+            {{ form.max_attempts.errors }}
+        </label>
+    </div>
+
+    <label>
+        <span>Poziomy odsłuchu</span>
+        {{ form.levels_definition }}
+        <small>{{ form.levels_definition.help_text }}</small>
+        {{ form.levels_definition.errors }}
+    </label>
+
+    <div class="check-row">
+        <label>{{ form.is_default }} Ustaw jako domyślny</label>
+        <label>{{ form.is_active }} Aktywny</label>
+    </div>
+
+    <div class="actions">
+        <button type="submit" class="button button-primary">Zapisz tryb</button>
+        <a href="{% url 'home' %}" class="button button-ghost">Anuluj</a>
+    </div>
+</form>
+{% endblock %}

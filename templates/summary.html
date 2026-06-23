@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Podsumowanie gry{% endblock %}
+
+{% block content %}
+<section class="summary-hero">
+    <p class="eyebrow">{{ result.game_mode.name }} · {{ result.playlist_name }}</p>
+    <h1>{{ result.score }} pkt</h1>
+    <p class="lead">Poprawne odpowiedzi: {{ result.correct_answers }} z {{ result.rounds_count }}. Miejsce w rankingu tej playlisty: {{ rank_position }}.</p>
+    <div class="actions">
+        <a href="{% url 'choose_playlist' result.game_mode.id %}" class="button button-primary">Zagraj ponownie</a>
+        <a href="{% url 'ranking' %}?mode={{ result.game_mode.id }}&playlist={{ result.playlist_id }}" class="button button-secondary">Ranking</a>
+    </div>
+</section>
+
+<section class="summary-grid">
+    <div class="card stat-card">
+        <span>Najlepszy Twój wynik</span>
+        <strong>{{ best_result.score }} pkt</strong>
+    </div>
+    <div class="card stat-card">
+        <span>Maksymalnie w tej grze</span>
+        <strong>{{ result.max_possible_score }} pkt</strong>
+    </div>
+    <div class="card stat-card">
+        <span>Data gry</span>
+        <strong>{{ result.played_at|date:"Y-m-d H:i" }}</strong>
+    </div>
+</section>
+
+<section class="round-results">
+    <h2>Rundy</h2>
+    {% for round in result.details %}
+        <article class="track-row">
+            <div>
+                <strong>{{ round.round }}. {{ round.artist }} - {{ round.track_name }}</strong>
+                <span>{{ round.level_label }} · {{ round.attempts_used }} prób · {{ round.status }}</span>
+            </div>
+            <b>{{ round.points }} pkt</b>
+        </article>
+    {% endfor %}
+</section>
+{% endblock %}
