@@ -49,4 +49,8 @@ Icon
 
 # --- Zmienne środowiskowe (Hasła i klucze) ---
 .env
+.env.*
+!.env.example
 .flaskenv
+.cache
+.spotipy-cache/

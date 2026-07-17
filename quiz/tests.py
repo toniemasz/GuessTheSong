@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.test import TestCase
 from django.urls import reverse
 
-from quiz.gameplay import answers_match, level_to_session, representative_start_ms
+from quiz.gameplay import answers_match, default_levels_text, level_to_session, representative_start_ms
 from quiz.models import GameMode, GameResult, ListeningLevel
 
 
@@ -19,6 +19,11 @@ class GameplayUtilityTests(TestCase):
         self.assertEqual(representative_start_ms(9000, Decimal("1")), 0)
         self.assertEqual(representative_start_ms(180000, Decimal("2")), 60000)
 
+    def test_default_levels_start_at_one_second_and_have_more_steps(self):
+        levels = default_levels_text().splitlines()
+        self.assertEqual(levels[0], "1:100")
+        self.assertEqual(len(levels), 8)
+
 
 class GameRoundFlowTests(TestCase):
     def setUp(self):
@@ -27,16 +32,16 @@ class GameRoundFlowTests(TestCase):
         self.level_1 = ListeningLevel.objects.create(
             game_mode=self.mode,
             order=1,
-            listen_seconds=Decimal("0.50"),
+            listen_seconds=Decimal("1.00"),
             points=100,
-            label="0.5 s",
+            label="1 s",
         )
         self.level_2 = ListeningLevel.objects.create(
             game_mode=self.mode,
             order=2,
-            listen_seconds=Decimal("1.00"),
-            points=80,
-            label="1 s",
+            listen_seconds=Decimal("2.00"),
+            points=90,
+            label="2 s",
         )
         self.client.force_login(self.user)
 
@@ -81,7 +86,26 @@ class GameRoundFlowTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["result"], "wrong")
         self.assertEqual(payload["attempts_left"], 2)
-        self.assertEqual(payload["level"]["label"], "1 s")
+        self.assertEqual(payload["level"]["label"], "2 s")
+        self.assertEqual(payload["start_ms"], 0)
+
+        state = self.client.session["game_state"]
+        self.assertEqual(state["current_attempts"], 1)
+        self.assertEqual(state["current_level_index"], 1)
+        self.assertFalse(state["round_answered"])
+
+    def test_skip_moves_to_next_level_without_finishing_round(self):
+        self._put_game_state_in_session()
+
+        response = self.client.post(reverse("check_guess"), {"action": "skip"})
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["result"], "skip")
+        self.assertFalse(payload["round_complete"])
+        self.assertEqual(payload["attempts_left"], 2)
+        self.assertEqual(payload["level"]["label"], "2 s")
+        self.assertEqual(payload["start_ms"], 0)
 
         state = self.client.session["game_state"]
         self.assertEqual(state["current_attempts"], 1)
@@ -97,6 +121,8 @@ class GameRoundFlowTests(TestCase):
         payload = response.json()
         self.assertEqual(payload["result"], "correct")
         self.assertEqual(payload["score"], 100)
+        self.assertEqual(payload["answer_start_ms"], 60000)
+        self.assertEqual(payload["answer_listen_ms"], 15000)
 
         next_response = self.client.get(reverse("next_round"))
         self.assertEqual(next_response.status_code, 302)

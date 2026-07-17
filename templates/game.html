@@ -22,7 +22,35 @@
 
         <div class="play-panel">
             <button id="play-btn" class="play-button" type="button" disabled>Ładowanie odtwarzacza</button>
-            <p id="player-status">Fragment zacznie się od reprezentatywnego momentu utworu.</p>
+            <button id="answer-play-btn" class="button button-secondary {% if not state.round_answered %}is-hidden{% endif %}" type="button" disabled>Odtwórz charakterystyczny fragment</button>
+            <p id="player-status">Fragment zaczyna się od początku utworu.</p>
+        </div>
+
+        <div id="track-reveal" class="track-reveal {% if state.round_answered %}is-revealed {% if round_result.status == 'correct' %}is-correct{% else %}is-failed{% endif %}{% else %}is-hidden{% endif %}" aria-live="polite">
+            <div class="track-reveal-art">
+                {% if track.image_url %}
+                    <img id="reveal-cover" src="{{ track.image_url }}" alt="Okładka utworu {{ track.name }}">
+                {% else %}
+                    <div id="reveal-cover-placeholder" class="reveal-cover-placeholder">Music Quiz</div>
+                {% endif %}
+            </div>
+            <div class="track-reveal-copy">
+                <span id="reveal-kicker" class="reveal-kicker">{% if round_result.status == 'correct' %}Zgadnięte{% elif state.round_answered %}Nie udało się{% else %}Trafiony utwór{% endif %}</span>
+                <div id="reveal-result" class="reveal-result">{% if round_result.status == 'correct' %}+{{ round_result.points }} pkt{% elif state.round_answered %}0 pkt{% else %}+0 pkt{% endif %}</div>
+                <h2 id="reveal-title">{{ track.name }}</h2>
+                <p id="reveal-artist">{{ track.artist }}</p>
+                {% if track.album_name %}
+                    <p id="reveal-album">{{ track.album_name }}</p>
+                {% else %}
+                    <p id="reveal-album"></p>
+                {% endif %}
+            </div>
+            <div class="reveal-equalizer" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
         </div>
 
         <form id="guess-form" class="guess-panel">
@@ -81,8 +109,21 @@
     let player = null;
     let listenDurationMs = Number("{{ listen_ms }}");
     let startPositionMs = Number("{{ start_ms }}");
+    let answerListenDurationMs = Number("{{ answer_listen_ms }}");
+    let answerStartPositionMs = Number("{{ answer_start_ms }}");
+    let playbackTimerId = null;
+    let playbackRunId = 0;
+    let playbackMode = null;
+    let roundComplete = "{{ state.round_answered|yesno:'true,false' }}" === "true";
 
     const playButton = document.getElementById("play-btn");
+    const answerPlayButton = document.getElementById("answer-play-btn");
+    const trackReveal = document.getElementById("track-reveal");
+    const revealKicker = document.getElementById("reveal-kicker");
+    const revealTitle = document.getElementById("reveal-title");
+    const revealArtist = document.getElementById("reveal-artist");
+    const revealAlbum = document.getElementById("reveal-album");
+    const revealCover = document.getElementById("reveal-cover");
     const statusBox = document.getElementById("player-status");
     const feedbackBox = document.getElementById("feedback-msg");
     const guessInput = document.getElementById("guess-input");
@@ -92,6 +133,7 @@
     const csrfToken = document.querySelector("[name=csrfmiddlewaretoken]").value;
     const trackUri = "{{ track_uri|escapejs }}";
     const spotifyToken = "{{ spotify_token|escapejs }}";
+    const playerEndpoint = "https://api.spotify.com/v1/me/player";
 
     window.onSpotifyWebPlaybackSDKReady = () => {
         player = new Spotify.Player({
@@ -102,55 +144,57 @@
 
         player.addListener("ready", ({ device_id }) => {
             deviceId = device_id;
-            playButton.disabled = false;
-            playButton.innerText = "Odtwórz fragment";
+            setPlaybackButtonsDisabled(false);
+            playButton.innerText = roundComplete ? "Runda zakończona" : "Odtwórz fragment";
             statusBox.innerText = "Gotowe do odsłuchu.";
         });
 
         player.addListener("initialization_error", ({ message }) => showFeedback(message, true));
-        player.addListener("authentication_error", ({ message }) => showFeedback(message, true));
+        player.addListener("authentication_error", ({ message }) => {
+            const details = message === "Invalid token scopes"
+                ? "Spotify odrzuciło stare uprawnienia. Wróć na stronę główną i zaloguj się przez Spotify jeszcze raz."
+                : message;
+            showFeedback(details, true);
+        });
         player.addListener("account_error", ({ message }) => showFeedback(message, true));
         player.connect();
     };
 
     playButton.addEventListener("click", () => {
+        if (!deviceId || isPlaying || roundComplete) {
+            return;
+        }
+
+        playTimedClip(
+            listenDurationMs,
+            startPositionMs,
+            playButton,
+            "Odtwórz ponownie",
+            "Możesz zgadywać albo odsłuchać fragment ponownie."
+        );
+    });
+
+    answerPlayButton.addEventListener("click", () => {
         if (!deviceId || isPlaying) {
             return;
         }
 
-        isPlaying = true;
-        playButton.disabled = true;
-        playButton.innerText = "Gra...";
-        statusBox.innerText = `${(listenDurationMs / 1000).toFixed(1)} s odsłuchu`;
+        playTimedClip(
+            answerListenDurationMs,
+            answerStartPositionMs,
+            answerPlayButton,
+            "Odtwórz charakterystyczny fragment",
+            "Charakterystyczny fragment zatrzymany."
+        );
+    });
 
-        fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
-            method: "PUT",
-            body: JSON.stringify({ uris: [trackUri], position_ms: startPositionMs }),
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${spotifyToken}`
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error("Spotify nie uruchomiło odtwarzania. Sprawdź konto Premium i aktywne urządzenie.");
-            }
-            setTimeout(() => {
-                player.pause().then(() => {
-                    isPlaying = false;
-                    playButton.disabled = false;
-                    playButton.innerText = "Odtwórz ponownie";
-                    statusBox.innerText = "Możesz zgadywać albo odsłuchać fragment ponownie.";
-                });
-            }, listenDurationMs);
-        })
-        .catch(error => {
-            isPlaying = false;
-            playButton.disabled = false;
-            playButton.innerText = "Spróbuj ponownie";
-            showFeedback(error.message, true);
+    nextButton.addEventListener("click", event => {
+        event.preventDefault();
+        stopPlayback("Przechodzę do kolejnej rundy.").finally(() => {
+            window.location.href = nextButton.href;
         });
     });
+    window.addEventListener("pagehide", () => stopPlayback(""));
 
     guessForm.addEventListener("submit", event => {
         event.preventDefault();
@@ -186,7 +230,7 @@
     }
 
     function handleRoundResponse(data) {
-        showFeedback(data.message, data.result !== "correct");
+        showFeedback(data.message, data.result !== "correct", data.result === "correct");
 
         if (data.score !== undefined) {
             document.getElementById("score-value").innerText = data.score;
@@ -196,7 +240,24 @@
             guessInput.disabled = true;
             guessForm.querySelector("button[type=submit]").disabled = true;
             skipButton.disabled = true;
+            roundComplete = true;
+            answerListenDurationMs = Number(data.answer_listen_ms || answerListenDurationMs);
+            answerStartPositionMs = Number(data.answer_start_ms || answerStartPositionMs);
+            answerPlayButton.classList.remove("is-hidden");
+            answerPlayButton.disabled = !deviceId;
             nextButton.classList.remove("is-hidden");
+            revealTrack(data);
+            stopPlayback("Runda zakończona. Ujawniono utwór.").then(() => {
+                if (data.result === "correct" && deviceId) {
+                    playTimedClip(
+                        answerListenDurationMs,
+                        answerStartPositionMs,
+                        answerPlayButton,
+                        "Odtwórz charakterystyczny fragment",
+                        "Charakterystyczny fragment zatrzymany."
+                    );
+                }
+            });
             return;
         }
 
@@ -210,13 +271,206 @@
                 item.classList.toggle("is-active", item.textContent.trim().startsWith(data.level.label));
             });
             guessInput.value = "";
-            statusBox.innerText = "Poziom odsłuchu został wydłużony.";
+            statusBox.innerText = "Poziom odsłuchu został wydłużony. Fragment nadal startuje od początku.";
         }
     }
 
-    function showFeedback(message, isError) {
+    async function playTimedClip(durationMs, startMs, activeButton, doneLabel, doneStatus) {
+        const currentRunId = playbackRunId + 1;
+        playbackRunId = currentRunId;
+        clearPlaybackTimer();
+
+        const clipDurationMs = Math.max(250, Number(durationMs) || 500);
+        const clipStartMs = Math.max(0, Math.round(Number(startMs) || 0));
+
+        isPlaying = true;
+        playbackMode = "clip";
+        setPlaybackButtonsDisabled(true);
+        activeButton.innerText = "Gra...";
+        statusBox.innerText = `${(clipDurationMs / 1000).toFixed(1)} s odsłuchu`;
+
+        try {
+            await spotifyRequest(playerEndpoint, {
+                method: "PUT",
+                body: JSON.stringify({ device_ids: [deviceId], play: false }),
+                headers: { "Content-Type": "application/json" }
+            }, "Spotify nie aktywowało odtwarzacza.");
+
+            await wait(250);
+
+            await spotifyRequest(`${playerEndpoint}/play?device_id=${encodeURIComponent(deviceId)}`, {
+                method: "PUT",
+                body: JSON.stringify({ uris: [trackUri], position_ms: clipStartMs }),
+                headers: { "Content-Type": "application/json" }
+            }, "Spotify nie uruchomiło odtwarzania.");
+
+            await wait(200);
+
+            await spotifyRequest(
+                `${playerEndpoint}/seek?position_ms=${clipStartMs}&device_id=${encodeURIComponent(deviceId)}`,
+                { method: "PUT" },
+                "Spotify uruchomiło utwór, ale nie przeskoczyło do fragmentu."
+            );
+
+            if (currentRunId !== playbackRunId) {
+                return;
+            }
+
+            await waitForPlaybackStart(clipStartMs, currentRunId);
+            if (currentRunId !== playbackRunId) {
+                return;
+            }
+
+            statusBox.innerText = `${(clipDurationMs / 1000).toFixed(1)} s realnego odsłuchu`;
+            playbackTimerId = window.setTimeout(() => {
+                stopPlayback(doneStatus, currentRunId, activeButton, doneLabel);
+            }, clipDurationMs);
+        } catch (error) {
+            if (currentRunId !== playbackRunId) {
+                return;
+            }
+            clearPlaybackTimer();
+            isPlaying = false;
+            playbackMode = null;
+            setPlaybackButtonsDisabled(false);
+            activeButton.innerText = activeButton === answerPlayButton ? "Odtwórz charakterystyczny fragment" : "Spróbuj ponownie";
+            showFeedback(error.message, true);
+        }
+    }
+
+    async function stopPlayback(statusText, runId = playbackRunId, activeButton = playButton, buttonLabel = "Odtwórz ponownie") {
+        clearPlaybackTimer();
+
+        try {
+            if (player) {
+                await player.pause();
+            }
+        } catch (error) {
+            // Pauza przez Web API poniżej domknie odtwarzanie, jeśli SDK nie zdążyło.
+        }
+
+        try {
+            if (deviceId) {
+                await fetch(`${playerEndpoint}/pause?device_id=${encodeURIComponent(deviceId)}`, {
+                    method: "PUT",
+                    headers: { "Authorization": `Bearer ${spotifyToken}` }
+                });
+            }
+        } catch (error) {
+            // Brak połączenia z API pauzy nie powinien blokować UI rundy.
+        }
+
+        if (runId !== playbackRunId) {
+            return;
+        }
+
+        isPlaying = false;
+        playbackMode = null;
+        setPlaybackButtonsDisabled(false);
+        playButton.innerText = roundComplete ? "Runda zakończona" : (activeButton === playButton ? buttonLabel : "Odtwórz ponownie");
+        answerPlayButton.innerText = activeButton === answerPlayButton ? buttonLabel : "Odtwórz charakterystyczny fragment";
+        if (statusText) {
+            statusBox.innerText = statusText;
+        }
+    }
+
+    function setPlaybackButtonsDisabled(disabled) {
+        playButton.disabled = disabled || !deviceId || roundComplete;
+        answerPlayButton.disabled = disabled || !deviceId;
+    }
+
+    function clearPlaybackTimer() {
+        if (playbackTimerId) {
+            window.clearTimeout(playbackTimerId);
+            playbackTimerId = null;
+        }
+    }
+
+    async function spotifyRequest(url, options, fallbackMessage) {
+        const response = await fetch(url, {
+            ...options,
+            headers: {
+                "Authorization": `Bearer ${spotifyToken}`,
+                ...(options.headers || {})
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error(await spotifyErrorMessage(response, fallbackMessage));
+        }
+
+        return response;
+    }
+
+    async function spotifyErrorMessage(response, fallbackMessage) {
+        if (response.status === 403) {
+            return "Spotify odmówiło odtwarzania. Sprawdź konto Premium i zaloguj się przez Spotify jeszcze raz.";
+        }
+        if (response.status === 404) {
+            return "Spotify nie widzi aktywnego odtwarzacza. Odśwież stronę i spróbuj ponownie.";
+        }
+
+        try {
+            const data = await response.json();
+            if (data.error && data.error.message) {
+                return `${fallbackMessage} ${data.error.message}`;
+            }
+        } catch (error) {
+            return fallbackMessage;
+        }
+
+        return fallbackMessage;
+    }
+
+    function wait(milliseconds) {
+        return new Promise(resolve => window.setTimeout(resolve, milliseconds));
+    }
+
+    async function waitForPlaybackStart(expectedStartMs, runId) {
+        const deadline = Date.now() + 3500;
+        const minimumPosition = Math.max(0, Math.round(Number(expectedStartMs) || 0) - 250);
+
+        while (Date.now() < deadline) {
+            if (runId !== playbackRunId) {
+                return;
+            }
+
+            const state = player ? await player.getCurrentState() : null;
+            if (state && !state.paused && Number(state.position || 0) >= minimumPosition) {
+                return;
+            }
+
+            await wait(50);
+        }
+
+        throw new Error("Spotify nie potwierdziło startu odtwarzania. Spróbuj jeszcze raz.");
+    }
+
+    function revealTrack(data) {
+        const isCorrect = data.result === "correct";
+        const points = Number(data.points_awarded || 0);
+        revealKicker.innerText = isCorrect ? "Zgadnięte" : "Nie udało się";
+        document.getElementById("reveal-result").innerText = isCorrect ? `+${points} pkt` : "0 pkt";
+        revealTitle.innerText = data.correct_answer || revealTitle.innerText;
+        revealArtist.innerText = data.correct_artist || revealArtist.innerText;
+        revealAlbum.innerText = data.correct_album_name || "";
+
+        if (data.correct_image_url && revealCover) {
+            revealCover.src = data.correct_image_url;
+        }
+
+        trackReveal.classList.remove("is-hidden");
+        trackReveal.classList.remove("is-revealed");
+        trackReveal.classList.toggle("is-correct", isCorrect);
+        trackReveal.classList.toggle("is-failed", !isCorrect);
+        void trackReveal.offsetWidth;
+        trackReveal.classList.add("is-revealed");
+    }
+
+    function showFeedback(message, isError, isSuccess = false) {
         feedbackBox.innerText = message;
         feedbackBox.classList.toggle("is-error", Boolean(isError));
+        feedbackBox.classList.toggle("is-success", Boolean(isSuccess));
     }
 </script>
 {% endblock %}

@@ -7,12 +7,14 @@ from django.core.exceptions import ValidationError
 
 
 DEFAULT_LEVELS = [
-    (Decimal("0.5"), 100, "0.5 s"),
-    (Decimal("1"), 80, "1 s"),
-    (Decimal("2"), 60, "2 s"),
-    (Decimal("5"), 40, "5 s"),
-    (Decimal("10"), 20, "10 s"),
-    (Decimal("20"), 10, "więcej"),
+    (Decimal("1"), 100, "1 s"),
+    (Decimal("2"), 90, "2 s"),
+    (Decimal("3"), 80, "3 s"),
+    (Decimal("5"), 65, "5 s"),
+    (Decimal("8"), 50, "8 s"),
+    (Decimal("12"), 35, "12 s"),
+    (Decimal("20"), 20, "20 s"),
+    (Decimal("30"), 10, "30 s"),
 ]
 
 POLISH_TRANSLATION = str.maketrans(

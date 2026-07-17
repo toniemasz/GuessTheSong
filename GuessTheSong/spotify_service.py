@@ -3,6 +3,7 @@ import logging
 
 import spotipy
 from spotipy import SpotifyOAuth
+from spotipy.cache_handler import MemoryCacheHandler
 from spotipy.exceptions import SpotifyException
 
 from . import settings
@@ -10,11 +11,33 @@ from . import settings
 
 logger = logging.getLogger(__name__)
 
+SPOTIFY_SCOPES = (
+    "playlist-read-private",
+    "playlist-read-collaborative",
+    "user-read-private",
+    "user-read-email",
+    "streaming",
+    "user-read-playback-state",
+    "user-modify-playback-state",
+)
+SPOTIFY_SCOPE = " ".join(SPOTIFY_SCOPES)
+
+
+def missing_token_scopes(token_info, required_scopes=SPOTIFY_SCOPES):
+    granted_scopes = set((token_info or {}).get("scope", "").split())
+    return set(required_scopes) - granted_scopes
+
 
 def get_spotify_client(request):
     token_info = request.session.get('token_info')
 
     if not token_info:
+        return None
+
+    missing_scopes = missing_token_scopes(token_info)
+    if missing_scopes:
+        logger.warning("Sesja Spotify ma brakujące uprawnienia: %s.", ", ".join(sorted(missing_scopes)))
+        request.session.clear()
         return None
 
     now = int(time.time())
@@ -51,6 +74,7 @@ def create_spotify_oauth():
         client_id=settings.CLIENT_ID,
         client_secret=settings.CLIENT_SECRET,
         redirect_uri=settings.REDIRECT_URI,
-        scope='playlist-read-private playlist-read-collaborative user-read-private streaming user-read-playback-state user-modify-playback-state',
+        scope=SPOTIFY_SCOPE,
+        cache_handler=MemoryCacheHandler(),
         show_dialog=True
     )

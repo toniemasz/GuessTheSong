@@ -478,6 +478,143 @@ small {
     cursor: wait;
 }
 
+.track-reveal {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr) auto;
+    gap: 1rem;
+    align-items: center;
+    margin: 1rem 0;
+    padding: 1rem;
+    overflow: hidden;
+    background: #121212;
+    border: 1px solid rgba(29, 185, 84, 0.35);
+    border-radius: 0.5rem;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.32);
+}
+
+.track-reveal.is-correct {
+    border-color: rgba(29, 185, 84, 0.9);
+    background: linear-gradient(135deg, rgba(29, 185, 84, 0.16), #121212 44%);
+}
+
+.track-reveal.is-failed {
+    border-color: rgba(255, 107, 107, 0.9);
+    background: linear-gradient(135deg, rgba(255, 107, 107, 0.16), #121212 44%);
+}
+
+.track-reveal.is-revealed {
+    animation: reveal-card 620ms ease both;
+}
+
+.track-reveal-art {
+    width: 132px;
+    aspect-ratio: 1;
+    overflow: hidden;
+    background: linear-gradient(135deg, #2b2d35, #101010);
+    border-radius: 0.35rem;
+    box-shadow: 0 12px 26px rgba(0, 0, 0, 0.35);
+}
+
+.track-reveal-art img,
+.reveal-cover-placeholder {
+    width: 100%;
+    height: 100%;
+}
+
+.track-reveal-art img {
+    display: block;
+    object-fit: cover;
+}
+
+.track-reveal.is-revealed .track-reveal-art {
+    animation: reveal-cover 700ms ease both;
+}
+
+.reveal-cover-placeholder {
+    display: grid;
+    place-items: center;
+    padding: 1rem;
+    color: var(--muted);
+    text-align: center;
+    font-weight: 900;
+}
+
+.track-reveal-copy {
+    min-width: 0;
+}
+
+.reveal-kicker {
+    color: var(--green);
+    font-size: 0.78rem;
+    font-weight: 900;
+    text-transform: uppercase;
+}
+
+.track-reveal.is-failed .reveal-kicker {
+    color: var(--coral);
+}
+
+.reveal-result {
+    display: inline-flex;
+    width: fit-content;
+    margin-top: 0.55rem;
+    padding: 0.35rem 0.6rem;
+    color: #07120b;
+    background: var(--green);
+    border-radius: 999px;
+    font-size: 0.85rem;
+    font-weight: 900;
+}
+
+.track-reveal.is-failed .reveal-result {
+    color: #1b0808;
+    background: var(--coral);
+}
+
+.track-reveal-copy h2 {
+    margin: 0.35rem 0 0.2rem;
+    overflow: hidden;
+    font-size: clamp(1.55rem, 4vw, 2.55rem);
+    line-height: 1.02;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.track-reveal-copy p {
+    margin: 0.1rem 0;
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.reveal-equalizer {
+    display: flex;
+    align-items: end;
+    gap: 0.22rem;
+    height: 2.4rem;
+}
+
+.reveal-equalizer span {
+    width: 0.3rem;
+    height: 0.7rem;
+    background: var(--green);
+    border-radius: 999px;
+    animation: equalizer-pulse 820ms ease-in-out infinite;
+}
+
+.reveal-equalizer span:nth-child(2) {
+    animation-delay: 110ms;
+}
+
+.reveal-equalizer span:nth-child(3) {
+    animation-delay: 220ms;
+}
+
+.reveal-equalizer span:nth-child(4) {
+    animation-delay: 330ms;
+}
+
 .guess-panel {
     display: grid;
     gap: 0.75rem;
@@ -502,6 +639,11 @@ small {
 
 .feedback.is-error {
     background: rgba(255, 107, 107, 0.13);
+}
+
+.feedback.is-success {
+    background: rgba(29, 185, 84, 0.2);
+    border: 1px solid rgba(29, 185, 84, 0.5);
 }
 
 .next-button {
@@ -585,6 +727,38 @@ small {
     margin-top: 0;
 }
 
+@keyframes reveal-card {
+    from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes reveal-cover {
+    from {
+        filter: saturate(0.25) brightness(0.7);
+        transform: scale(1.08);
+    }
+    to {
+        filter: saturate(1) brightness(1);
+        transform: scale(1);
+    }
+}
+
+@keyframes equalizer-pulse {
+    0%,
+    100% {
+        height: 0.65rem;
+    }
+    50% {
+        height: 2.25rem;
+    }
+}
+
 @media (max-width: 760px) {
     .topbar,
     .page-heading,
@@ -620,5 +794,17 @@ small {
 
     .topnav a {
         padding-left: 0;
+    }
+
+    .track-reveal {
+        grid-template-columns: 88px minmax(0, 1fr);
+    }
+
+    .track-reveal-art {
+        width: 88px;
+    }
+
+    .reveal-equalizer {
+        display: none;
     }
 }

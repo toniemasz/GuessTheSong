@@ -14,12 +14,14 @@ class PlaylistLoadError(Exception):
 class Track:
     """Klasa reprezentująca pojedynczą piosenkę."""
 
-    def __init__(self, track_id, name, artist, uri, duration_ms=None):
+    def __init__(self, track_id, name, artist, uri, duration_ms=None, image_url="", album_name=""):
         self.id = track_id
         self.name = name
         self.artist = artist
         self.uri = uri
         self.duration_ms = duration_ms
+        self.image_url = image_url
+        self.album_name = album_name
 
     def __str__(self):
         return f"{self.artist} - {self.name}"
@@ -31,6 +33,8 @@ class Track:
             "artist": self.artist,
             "uri": self.uri,
             "duration_ms": self.duration_ms,
+            "image_url": self.image_url,
+            "album_name": self.album_name,
         }
 
 
@@ -77,6 +81,9 @@ class PlaylistManager:
                 continue
 
             artists = track_data.get("artists") or []
+            album = track_data.get("album") or {}
+            images = album.get("images") or []
+            image_url = images[0].get("url", "") if images and isinstance(images[0], dict) else ""
             uri = track_data.get("uri") or f"spotify:track:{track_id}"
             track_objects.append(
                 Track(
@@ -85,6 +92,8 @@ class PlaylistManager:
                     artist=artists[0]["name"] if artists else "Nieznany artysta",
                     uri=uri,
                     duration_ms=track_data.get("duration_ms"),
+                    image_url=image_url,
+                    album_name=album.get("name", ""),
                 )
             )
 

@@ -12,7 +12,11 @@ from quiz.gameplay import answers_match, level_to_session, representative_start_
 from quiz.models import GameMode, GameResult, ListeningLevel
 
 from .game_logic import PlaylistLoadError, PlaylistManager
-from .spotify_service import create_spotify_oauth, get_spotify_client
+from .spotify_service import create_spotify_oauth, get_spotify_client, missing_token_scopes
+
+
+ANSWER_LISTEN_SECONDS = 15
+ANSWER_LISTEN_MS = ANSWER_LISTEN_SECONDS * 1000
 
 
 def _sync_spotify_user(request, sp):
@@ -59,6 +63,17 @@ def _sync_spotify_user(request, sp):
 
 
 def _require_spotify_user(request):
+    token_info = request.session.get("token_info")
+    if token_info:
+        missing_scopes = missing_token_scopes(token_info)
+        if missing_scopes:
+            messages.error(
+                request,
+                "Spotify wymaga ponownej zgody na odtwarzanie muzyki. Zaloguj się przez Spotify jeszcze raz.",
+            )
+            request.session.clear()
+            return None, None
+
     sp = get_spotify_client(request)
     if not sp:
         return None, None
@@ -137,8 +152,42 @@ def _current_level(state):
 
 def _round_timing(track, level):
     listen_ms = int(level["listen_seconds"] * 1000)
-    start_ms = representative_start_ms(track.get("duration_ms"), level["listen_seconds"])
+    return listen_ms, 0
+
+
+def _answer_timing(track):
+    duration_ms = track.get("duration_ms")
+    start_ms = representative_start_ms(duration_ms, ANSWER_LISTEN_SECONDS)
+    if not duration_ms:
+        return ANSWER_LISTEN_MS, start_ms
+
+    listen_ms = min(ANSWER_LISTEN_MS, max(1000, duration_ms - start_ms - 1000))
     return listen_ms, start_ms
+
+
+def _advance_listening_level(state, track, guess, attempts_used, status="wrong"):
+    if attempts_used >= state["max_attempts"] or state["current_level_index"] >= len(state["levels"]) - 1:
+        level = _current_level(state)
+        _finish_round(state, "failed" if status == "wrong" else "skipped", guess, 0, attempts_used, level)
+        return _round_complete_payload(
+            state,
+            "failed" if status == "wrong" else "skipped",
+            f"Koniec prób. Poprawna odpowiedź: {track['artist']} - {track['name']}.",
+        )
+
+    state["current_level_index"] += 1
+    next_level = _current_level(state)
+    listen_ms, start_ms = _round_timing(track, next_level)
+    return {
+        "result": status,
+        "message": "Dostajesz dłuższy fragment.",
+        "round_complete": False,
+        "score": state["score"],
+        "attempts_left": state["max_attempts"] - state["current_attempts"],
+        "level": next_level,
+        "listen_ms": listen_ms,
+        "start_ms": start_ms,
+    }
 
 
 def _finish_round(state, status, guess, points, attempts_used, level):
@@ -165,13 +214,21 @@ def _finish_round(state, status, guess, points, attempts_used, level):
 
 def _round_complete_payload(state, result, message):
     track = _current_track(state)
+    answer_listen_ms, answer_start_ms = _answer_timing(track)
+    round_result = state["rounds"][-1] if state.get("rounds") else {}
+    points_awarded = round_result.get("points", 0)
     return {
         "result": result,
         "message": message,
         "round_complete": True,
         "score": state["score"],
+        "points_awarded": points_awarded,
         "correct_answer": track["name"],
         "correct_artist": track["artist"],
+        "correct_image_url": track.get("image_url", ""),
+        "correct_album_name": track.get("album_name", ""),
+        "answer_listen_ms": answer_listen_ms,
+        "answer_start_ms": answer_start_ms,
         "next_url": "/game/next/",
     }
 
@@ -430,6 +487,8 @@ def game_round(request):
         return redirect("home")
 
     listen_ms, start_ms = _round_timing(track, level)
+    answer_listen_ms, answer_start_ms = _answer_timing(track)
+    round_result = state["rounds"][-1] if state.get("round_answered") and state.get("rounds") else {}
     current_round_number = state["current_round_index"] + 1
     progress_rounds = current_round_number if state["round_answered"] else current_round_number - 1
     progress_percent = round((progress_rounds / state["rounds_total"]) * 100)
@@ -446,6 +505,9 @@ def game_round(request):
             "current_level": level,
             "listen_ms": listen_ms,
             "start_ms": start_ms,
+            "answer_listen_ms": answer_listen_ms,
+            "answer_start_ms": answer_start_ms,
+            "round_result": round_result,
             "attempts_left": state["max_attempts"] - state["current_attempts"],
             "round_number": current_round_number,
             "progress_percent": progress_percent,
@@ -493,15 +555,11 @@ def check_guess(request):
         return JsonResponse({"result": "error", "message": str(exc)}, status=400)
 
     if action == "skip":
-        _finish_round(state, "skipped", "", 0, state["current_attempts"], level)
+        attempts_used = state["current_attempts"] + 1
+        state["current_attempts"] = attempts_used
+        payload = _advance_listening_level(state, track, "", attempts_used, status="skip")
         request.session["game_state"] = state
-        return JsonResponse(
-            _round_complete_payload(
-                state,
-                "skipped",
-                f"Poprawna odpowiedź: {track['artist']} - {track['name']}.",
-            )
-        )
+        return JsonResponse(payload)
 
     if not guess:
         return JsonResponse(
@@ -526,33 +584,11 @@ def check_guess(request):
             )
         )
 
-    if attempts_used >= state["max_attempts"]:
-        _finish_round(state, "failed", guess, 0, attempts_used, level)
-        request.session["game_state"] = state
-        return JsonResponse(
-            _round_complete_payload(
-                state,
-                "failed",
-                f"Koniec prób. Poprawna odpowiedź: {track['artist']} - {track['name']}.",
-            )
-        )
-
-    state["current_level_index"] = min(state["current_level_index"] + 1, len(state["levels"]) - 1)
-    next_level = _current_level(state)
-    listen_ms, start_ms = _round_timing(track, next_level)
+    payload = _advance_listening_level(state, track, guess, attempts_used)
     request.session["game_state"] = state
-    return JsonResponse(
-        {
-            "result": "wrong",
-            "message": "To nie ten tytuł. Dostajesz dłuższy fragment.",
-            "round_complete": False,
-            "score": state["score"],
-            "attempts_left": state["max_attempts"] - state["current_attempts"],
-            "level": next_level,
-            "listen_ms": listen_ms,
-            "start_ms": start_ms,
-        }
-    )
+    if payload["result"] == "wrong" and not payload["round_complete"]:
+        payload["message"] = "To nie ten tytuł. Dostajesz dłuższy fragment."
+    return JsonResponse(payload)
 
 
 def _legacy_check_guess(request, user_guess):
